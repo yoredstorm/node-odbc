@@ -1,8 +1,8 @@
 {
-  "name": "odbc",
-  "description": "unixodbc bindings for node",
-  "version": "2.4.9",
-  "homepage": "http://github.com/IBM/node-odbc/",
+  "name": "@yoredstorm/node-odbc",
+  "description": "unixodbc bindings for node - Fork with multi-result set support for stored procedures",
+  "version": "2.4.10-multiresult.1",
+  "homepage": "https://github.com/yoredstorm/node-odbc/",
   "main": "lib/odbc.js",
   "types": "lib/odbc.d.ts",
   "files": [
@@ -13,10 +13,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/IBM/node-odbc.git"
+    "url": "git://github.com/yoredstorm/node-odbc.git"
   },
   "bugs": {
-    "url": "https://github.com/IBM/node-odbc/issues"
+    "url": "https://github.com/yoredstorm/node-odbc/issues"
   },
   "contributors": [
     {
