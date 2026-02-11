@@ -208,6 +208,9 @@ typedef struct StatementData {
   std::vector<ColumnData*>    storedRows;
   SQLLEN                      rowCount;
 
+  // Multiple result sets support (added by Pablo Pimentel)
+  std::vector<std::vector<ColumnData*>> allResultSets;
+
   SQLSMALLINT                 maxColumnNameLength;
 
   SQLUSMALLINT               *row_status_array;

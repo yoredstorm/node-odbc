@@ -1862,6 +1862,7 @@ class CallProcedureAsyncWorker : public ODBCAsyncWorker {
         1
       );
 
+      // Execute the stored procedure
       return_code = SQLExecDirect(
         data->hstmt, // StatementHandle
         data->sql,   // StatementText
@@ -1873,23 +1874,63 @@ class CallProcedureAsyncWorker : public ODBCAsyncWorker {
         return;
       }
 
-      return_code = prepare_for_fetch(data);
-      return_code =
-      fetch_all_and_store
-      (
-        data,
-        true,
-        &alloc_error
-      );
-      if (alloc_error)
-      {
-        SetError("[odbc] Error allocating or reallocating memory when fetching data. No ODBC error information available.");
-        return;
-      }
-      if (!SQL_SUCCEEDED(return_code)) {
-        this->errors = GetODBCErrors(SQL_HANDLE_STMT, data->hstmt);
-        SetError("[odbc] Error retrieving the results from the procedure call\0");
-        return;
+      // MODIFICACIÓN: Soporte para múltiples result sets (Pablo Pimentel)
+      // Loop para obtener todos los result sets del stored procedure
+      bool hasMoreResults = true;
+
+      while (hasMoreResults) {
+        // Preparar para obtener el result set actual
+        return_code = prepare_for_fetch(data);
+        if (!SQL_SUCCEEDED(return_code)) {
+          this->errors = GetODBCErrors(SQL_HANDLE_STMT, data->hstmt);
+          SetError("[odbc] Error preparing for fetch\0");
+          return;
+        }
+
+        // Obtener todos los datos del result set actual
+        return_code = fetch_all_and_store(
+          data,
+          true,
+          &alloc_error
+        );
+        
+        if (alloc_error) {
+          SetError("[odbc] Error allocating or reallocating memory when fetching data. No ODBC error information available.");
+          return;
+        }
+        
+        if (!SQL_SUCCEEDED(return_code) && return_code != SQL_NO_DATA) {
+          this->errors = GetODBCErrors(SQL_HANDLE_STMT, data->hstmt);
+          SetError("[odbc] Error retrieving the results from the procedure call\0");
+          return;
+        }
+
+        // Guardar el result set actual en allResultSets
+        if (data->storedRows.size() > 0) {
+          std::vector<ColumnData*> currentResultSet;
+          for (size_t i = 0; i < data->storedRows.size(); i++) {
+            currentResultSet.push_back(data->storedRows[i]);
+          }
+          data->allResultSets.push_back(currentResultSet);
+        }
+
+        // Limpiar storedRows para el próximo result set (sin liberar memoria)
+        data->storedRows.clear();
+        
+        // Limpiar columnas para el próximo result set
+        data->deleteColumns();
+
+        // Intentar obtener el siguiente result set
+        return_code = SQLMoreResults(data->hstmt);
+        
+        if (return_code == SQL_NO_DATA) {
+          // No hay más result sets
+          hasMoreResults = false;
+        } else if (!SQL_SUCCEEDED(return_code)) {
+          this->errors = GetODBCErrors(SQL_HANDLE_STMT, data->hstmt);
+          SetError("[odbc] Error getting more results\0");
+          return;
+        }
       }
     }
 
@@ -1898,13 +1939,31 @@ class CallProcedureAsyncWorker : public ODBCAsyncWorker {
       Napi::Env env = Env();
       Napi::HandleScope scope(env);
 
-      std::vector<napi_value> callbackArguments;
-
+      // MODIFICACIÓN: Procesar múltiples result sets (Pablo Pimentel)
+      Napi::Array allResults = Napi::Array::New(env);
+      
       odbcConnectionObject->ParametersToArray(&napiParameters, data, overwriteParams);
-      Napi::Array rows = process_data_for_napi(env, data, napiParameters.Value());
+      
+      // Procesar cada result set almacenado
+      for (size_t rs_index = 0; rs_index < data->allResultSets.size(); rs_index++) {
+        // Restaurar temporalmente storedRows para procesarlo
+        data->storedRows = data->allResultSets[rs_index];
+        
+        Napi::Array singleResult = process_data_for_napi(
+          env,
+          data,
+          napiParameters.Value()
+        );
+        
+        allResults.Set(rs_index, singleResult);
+        
+        // Limpiar storedRows después de procesar
+        data->storedRows.clear();
+      }
 
+      std::vector<napi_value> callbackArguments;
       callbackArguments.push_back(env.Null());
-      callbackArguments.push_back(rows);
+      callbackArguments.push_back(allResults);
 
       // return results object
       Callback().Call(callbackArguments);

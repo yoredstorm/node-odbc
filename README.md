@@ -1,5 +1,37 @@
-# odbc MULTI RETULTS PP
+# odbc (Fork con Soporte Multi-ResultSet)
 
+🔀 **Este es un fork de [IBM/node-odbc](https://github.com/IBM/node-odbc)**
+
+## Modificaciones por Pablo Pimentel
+
+Esta versión ha sido modificada para soportar **múltiples result sets** cuando se llama a stored procedures que retornan más de un conjunto de resultados.
+
+### Cambios principales:
+- ✅ Soporte para `SQLMoreResults` en `callProcedure()`
+- ✅ Retorna un array de result sets en lugar de solo el primero
+- ✅ Totalmente compatible con la API original
+
+### Ejemplo de uso con múltiples result sets
+
+```javascript
+const odbc = require('@yoredstorm/node-odbc');
+
+async function callProcedureWithMultipleResults() {
+    const connection = await odbc.connect('DSN=MYDSN');
+    const result = await connection.callProcedure(null, null, 'MY_PROC', [param1, param2]);
+    
+    // Ahora result contiene TODOS los result sets
+    console.log('Total de result sets:', result.length);
+    
+    result.forEach((resultSet, index) => {
+        console.log(`Result Set ${index + 1}:`, resultSet);
+    });
+}
+```
+
+---
+
+## Documentación Original
 
 An asynchronous interface for Node.js to unixODBC and its supported drivers.
 
